@@ -120,7 +120,6 @@ function startDashboard() {
         updateLiveChart(liveCharts.gas, time, s.gasValue);
 
         // --- HOURLY LOGGING HEARTBEAT ---
-        // This will log to Firestore when the minute is 00
         const logDate = new Date();
         if (logDate.getMinutes() === 0) {
             const currentHourKey = `${logDate.getDate()}-${logDate.getHours()}`;
@@ -171,9 +170,10 @@ function startDashboard() {
         const pumpBtn = document.getElementById('btn-pump');
         if (!isAuto && ctrl.pump) { 
             pumpBtn.innerText = "Running..."; pumpBtn.disabled = true; 
-        } else if (!pumpCooldownActive) {
+        } else {
+            // Updated Logic: Button is only enabled if mode is MANUAL AND no cooldown is active AND moisture is < 100
             pumpBtn.innerText = "Pump";
-            pumpBtn.disabled = isAuto || currentMoisture >= 100;
+            pumpBtn.disabled = isAuto || pumpCooldownActive || currentMoisture >= 100;
         }
 
         if (currentMoisture >= 100 && ctrl.pump === true) update(ref(db, 'Control'), { pump: false });
