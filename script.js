@@ -46,33 +46,47 @@ function initLiveCharts() {
     liveCharts.gas = new Chart(document.getElementById('gasChart'), config('Gas', '#ffb703'));
 }
 
-// --- 2. LOAD HISTORY ---
+// --- 2. LOAD HISTORY & EXPORT LOGIC ---
 async function loadFullHistory() {
     const btn = document.getElementById('btn-open-history');
     btn.innerText = "Loading History...";
     try {
         const qSnap = await getDocs(query(collection(fs, "hourly_history"), orderBy("timestamp", "asc")));
         const dailyAgg = {};
+        
         qSnap.forEach(doc => {
             const d = doc.data();
             if (!d.timestamp) return;
             const dateKey = d.timestamp.toDate().toISOString().split('T')[0];
+            
             if (!dailyAgg[dateKey]) dailyAgg[dateKey] = { t: 0, m: 0, g: 0, c: 0 };
+            
             dailyAgg[dateKey].t += d.temperature;
             dailyAgg[dateKey].m += d.moisture;
             dailyAgg[dateKey].g += (d.gasValue || 0);
             dailyAgg[dateKey].c++;
         });
+
         const labels = [], tAvg = [], mAvg = [], gAvg = [];
-        Object.keys(dailyAgg).forEach(day => {
+        const sortedDates = Object.keys(dailyAgg).sort();
+
+        sortedDates.forEach(day => {
             labels.push(new Date(day).toLocaleDateString([], { month: 'short', day: 'numeric' }));
             tAvg.push(dailyAgg[day].t / dailyAgg[day].c);
             mAvg.push(dailyAgg[day].m / dailyAgg[day].c);
             gAvg.push(dailyAgg[day].g / dailyAgg[day].c);
         });
+
         renderHistoryCharts(labels, tAvg, mAvg, gAvg);
         document.getElementById('history-screen').style.display = 'block';
-    } catch (e) { console.error(e); }
+
+        // Attach Export Handlers inside the scope where dailyAgg exists
+        document.getElementById('btn-print-history').onclick = () => window.print();
+        document.getElementById('btn-export-csv').onclick = () => exportToCSV(dailyAgg, sortedDates);
+
+    } catch (e) { 
+        console.error("History Load Error: ", e); 
+    }
     btn.innerText = "📊 View All History";
 }
 
@@ -82,7 +96,13 @@ function renderHistoryCharts(labels, t, m, g) {
         data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: color + '22', fill: true, pointRadius: 4 }] },
         options: { responsive: true, maintainAspectRatio: false }
     });
-    if (historyCharts.temp) Object.values(historyCharts).forEach(c => c.destroy());
+    
+    if (historyCharts.temp) {
+        historyCharts.temp.destroy();
+        historyCharts.moisture.destroy();
+        historyCharts.gas.destroy();
+    }
+
     historyCharts.temp = new Chart(document.getElementById('histTempChart'), histConfig('Avg Temp', '#bc4749', t));
     historyCharts.moisture = new Chart(document.getElementById('histMoistureChart'), histConfig('Avg Moisture', '#2d6a4f', m));
     historyCharts.gas = new Chart(document.getElementById('histGasChart'), histConfig('Avg Gas', '#ffb703', g));
@@ -91,9 +111,11 @@ function renderHistoryCharts(labels, t, m, g) {
 // --- 3. DASHBOARD LOGIC ---
 function startDashboard() {
     const mixSelect = document.getElementById('mix1');
-    for (let i = 0; i < 24; i++) {
-        let hr = i.toString().padStart(2, '0') + ":00";
-        mixSelect.innerHTML += `<option value="${i}">${hr}</option>`;
+    if (mixSelect && mixSelect.options.length === 0) {
+        for (let i = 0; i < 24; i++) {
+            let hr = i.toString().padStart(2, '0') + ":00";
+            mixSelect.innerHTML += `<option value="${i}">${hr}</option>`;
+        }
     }
 
     onValue(ref(db, '/'), (snapshot) => {
@@ -113,13 +135,13 @@ function startDashboard() {
         document.getElementById('gas-val').innerText = s.gasValue;
         document.getElementById('status-dot').className = 'dot-online';
 
-        // Charts
+        // Live Charts
         const time = `${rtc.hour.toString().padStart(2,'0')}:${rtc.minute.toString().padStart(2,'0')}`;
         updateLiveChart(liveCharts.temp, time, s.temperature);
         updateLiveChart(liveCharts.moisture, time, s.soilMoisturePercent);
         updateLiveChart(liveCharts.gas, time, s.gasValue);
 
-        // --- HOURLY LOGGING HEARTBEAT ---
+        // Hourly Logging (Heartbeat)
         const logDate = new Date();
         if (logDate.getMinutes() === 0) {
             const currentHourKey = `${logDate.getDate()}-${logDate.getHours()}`;
@@ -131,12 +153,11 @@ function startDashboard() {
                     timestamp: serverTimestamp()
                 }).then(() => {
                     localStorage.setItem('lastLoggedHour', currentHourKey);
-                    console.log("Hourly data logged to Firestore.");
                 }).catch(err => console.error("Logging failed: ", err));
             }
         }
 
-        // Actuators Basic UI
+        // Actuators UI
         updateBtnUI('btn-motor', ctrl.motor);
         updateBtnUI('btn-fan', ctrl.fan);
         updateBtnUI('btn-pump', ctrl.pump);
@@ -146,7 +167,7 @@ function startDashboard() {
         document.getElementById('mode-auto').className = isAuto ? 'btn-outline active' : 'btn-outline';
         document.getElementById('mode-manual').className = !isAuto ? 'btn-outline active' : 'btn-outline';
 
-        // Cooldowns
+        // Cooldown Sync
         const now = Date.now();
         const cooldownPeriod = 15 * 60 * 1000;
         if (cooldowns.motor?.lastRun && !motorCooldownActive) {
@@ -158,7 +179,7 @@ function startDashboard() {
             if (diff < cooldownPeriod) startPumpCooldown(Math.floor((cooldownPeriod - diff) / 1000));
         }
 
-        // Button States
+        // Logic Buttons
         const motorBtn = document.getElementById('btn-motor');
         if (!isAuto && ctrl.motor) { motorBtn.innerText = "Running..."; motorBtn.disabled = true; } 
         else if (!motorCooldownActive) { motorBtn.innerText = "Motor"; motorBtn.disabled = isAuto; }
@@ -171,7 +192,6 @@ function startDashboard() {
         if (!isAuto && ctrl.pump) { 
             pumpBtn.innerText = "Running..."; pumpBtn.disabled = true; 
         } else {
-            // Updated Logic: Button is only enabled if mode is MANUAL AND no cooldown is active AND moisture is < 100
             pumpBtn.innerText = "Pump";
             pumpBtn.disabled = isAuto || pumpCooldownActive || currentMoisture >= 100;
         }
@@ -184,7 +204,7 @@ function startDashboard() {
             if (!nextMixInterval) nextMixInterval = setInterval(updateNextMixCountdown, 1000);
         }
 
-        // Process Progress
+        // Composting Process State
         const startTimestamp = data.Process?.startTime;
         const compostBtn = document.getElementById('btn-start-compost');
         const progressContainer = document.getElementById('progress-container');
@@ -204,7 +224,7 @@ function startDashboard() {
         }
     });
 
-    // --- CLICK HANDLERS ---
+    // --- DASHBOARD CLICK EVENTS ---
     document.getElementById('btn-start-compost').onclick = () => {
         const compostBtn = document.getElementById('btn-start-compost');
         const newVal = (compostBtn.innerText === "Stop Composting") ? 0 : Date.now();
@@ -289,7 +309,27 @@ function startPumpCooldown(seconds) {
     }, 1000);
 }
 
-// --- UTILITIES ---
+// --- DATA UTILITIES ---
+function exportToCSV(data, sortedDates) {
+    if (!data || sortedDates.length === 0) return alert("No data available to export.");
+    let csvContent = "data:text/csv;charset=utf-8,Date,Avg Temp (C),Avg Moisture (%),Avg Gas\n";
+    sortedDates.forEach(date => {
+        const row = [
+            date,
+            (data[date].t / data[date].c).toFixed(2),
+            (data[date].m / data[date].c).toFixed(2),
+            (data[date].g / data[date].c).toFixed(2)
+        ].join(",");
+        csvContent += row + "\n";
+    });
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `compost_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 function updateProgressBar(startTime) {
     if (!startTime || startTime <= 0) return;
     const now = Date.now();
@@ -334,6 +374,7 @@ function updateLiveChart(chart, label, value) {
 
 function updateBtnUI(id, state) {
     const btn = document.getElementById(id);
+    if (!btn) return;
     if (state === true) { 
         btn.classList.add('active'); btn.style.background = "#2d6a4f"; btn.style.color = "white"; 
     } else { 
@@ -341,6 +382,7 @@ function updateBtnUI(id, state) {
     }
 }
 
+// --- AUTH OBSERVER ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         document.getElementById('auth-screen').style.display = 'none';
