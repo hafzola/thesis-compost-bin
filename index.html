@@ -20,11 +20,11 @@
             <form id="login-form">
                 <div class="input-group">
                     <label>Email Address</label>
-                    <input type="email" id="email" value="" required>
+                    <input type="email" id="email" placeholder="Enter your email" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" id="password" placeholder="" required>
+                    <input type="password" id="password" placeholder="Enter your password" required>
                 </div>
                 <button type="submit" class="btn-primary">Sign In</button>
                 <p id="auth-error" class="error-msg"></p>
@@ -115,13 +115,7 @@
                         <button id="btn-fan" class="btn-outline ctrl-btn">Fan</button>
                         <button id="btn-pump" class="btn-outline ctrl-btn">Pump</button>
                     </div>
-                    <div id="timer-container" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 0.8rem; color: #666;">Next Scheduled Mix:</span>
-                            <span id="next-mix-timer" style="font-size: 0.9rem; font-weight: bold; color: #2d6a4f; font-family: monospace;">--h --m --s</span>
-                        </div>
-                    </div>
-                    <p class="hint" style="margin-top: 10px;">*Controls disabled in Auto Mode / Pump Disabled at 100% Moisture</p>
+                    <p class="hint" style="margin-top: 10px;">*Controls disabled in Auto Mode</p>
                 </div>
             </div>
 
@@ -160,33 +154,43 @@
         </main>
     </div>
 
-    <div id="history-screen">
-        <div class="history-header">
+    <div id="history-screen" style="display: none;">
+        <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #f8f9fa; border-bottom: 2px solid #2d6a4f;">
             <div>
                 <h1>28-Day Project History</h1>
                 <p>Daily Averages for Documentation</p>
             </div>
-            <button id="btn-close-history">Back to Dashboard</button>
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-print-history" class="btn-primary" style="width: auto; background: #2d6a4f; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; color: white; font-weight: bold;">
+                    🖨️ Print PDF Report
+                </button>
+                <button id="btn-export-csv" class="btn-outline" style="background: white; color: #2d6a4f; border: 1px solid #2d6a4f; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    📥 Export CSV
+                </button>
+                <button id="btn-close-history" style="background: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    Back to Dashboard
+                </button>
+            </div>
         </div>
 
-        <div class="history-container">
-            <div class="hist-card">
-                <h3 style="color: #bc4749;">🌡️ Temperature (Daily Average)</h3>
-                <div class="hist-chart-wrapper">
+        <div class="history-container" style="padding: 20px; max-width: 1200px; margin: 0 auto;">
+            <div class="hist-card" style="margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <h3 style="color: #bc4749; margin-bottom: 15px;">🌡️ Temperature (Daily Average)</h3>
+                <div class="hist-chart-wrapper" style="height: 300px;">
                     <canvas id="histTempChart"></canvas>
                 </div>
             </div>
 
-            <div class="hist-card">
-                <h3 style="color: #2d6a4f;">💧 Moisture (Daily Average)</h3>
-                <div class="hist-chart-wrapper">
+            <div class="hist-card" style="margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <h3 style="color: #2d6a4f; margin-bottom: 15px;">💧 Moisture (Daily Average)</h3>
+                <div class="hist-chart-wrapper" style="height: 300px;">
                     <canvas id="histMoistureChart"></canvas>
                 </div>
             </div>
 
-            <div class="hist-card">
-                <h3 style="color: #ffb703;">💨 Gas (Daily Average)</h3>
-                <div class="hist-chart-wrapper">
+            <div class="hist-card" style="margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <h3 style="color: #ffb703; margin-bottom: 15px;">💨 Gas (Daily Average)</h3>
+                <div class="hist-chart-wrapper" style="height: 300px;">
                     <canvas id="histGasChart"></canvas>
                 </div>
             </div>
