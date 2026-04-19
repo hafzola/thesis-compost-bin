@@ -1,0 +1,5 @@
+{
+  "name": "Compost Bin Monitor",
+  "description": "A real-time monitoring system for compost bins with sensor data visualization and actuator control.",
+  "requestFramePermissions": []
+}
